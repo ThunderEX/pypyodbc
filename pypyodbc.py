@@ -1182,7 +1182,6 @@ class Cursor:
         self._ParamBufferList = []
         self._ColBufferList = []
         self._row_type = None
-        self._buf_cvt_func = []
         self.rowcount = -1
         self.description = None
         self.autocommit = None
@@ -1634,14 +1633,6 @@ class Cursor:
         else:
             self.execdirect(query_string)
         return self
-    
-    
-    def _SQLExecute(self):
-        if not self.connection:
-            self.close()
-        ret = SQLExecute(self.stmt_h)
-        if ret != SQL_SUCCESS:
-            check_success(self, ret)  
         
     
     def execdirect(self, query_string):
@@ -2416,11 +2407,11 @@ class Cursor:
 # This class implement a odbc connection. 
 #
 #
-connection_timeout = 0
 
 
 class Connection:
-    def __init__(self, connectString = '', autocommit = False, ansi = False, timeout = 0, unicode_results = use_unicode, readonly = False, **kargs):
+    def __init__(self, connectString='', autocommit=False, ansi=False, timeout=0, unicode_results=use_unicode,
+                 readonly=False, connection_timeout=0, **kargs):
         """Init variables and connect to the engine"""
         self.connected = 0
         self.type_size_dic = {}
@@ -2432,9 +2423,8 @@ class Connection:
         # the query timeout value
         self.timeout = 0
         # self._cursors = []
-        for key, value in list(kargs.items()):
+        for key, value in kargs.items():
             connectString = connectString + key + '=' + value + ';'
-        self.connectString = connectString
 
         
         self.clear_output_converters()
@@ -2455,16 +2445,13 @@ class Connection:
         ret = ODBC_API.SQLAllocHandle(SQL_HANDLE_DBC, shared_env_h, ADDR(self.dbc_h))
         check_success(self, ret)
 
-        self.connection_timeout = connection_timeout
-        if self.connection_timeout != 0:
+        if connection_timeout != 0:
             self.set_connection_timeout(connection_timeout)
-        
         
         self.connect(connectString, autocommit, ansi, timeout, unicode_results, readonly)
         
-    def set_connection_timeout(self,connection_timeout):
-        self.connection_timeout = connection_timeout
-        ret = ODBC_API.SQLSetConnectAttr(self.dbc_h, SQL_ATTR_CONNECTION_TIMEOUT, connection_timeout, SQL_IS_UINTEGER);
+    def set_connection_timeout(self, connection_timeout):
+        ret = ODBC_API.SQLSetConnectAttr(self.dbc_h, SQL_ATTR_CONNECTION_TIMEOUT, connection_timeout, SQL_IS_UINTEGER)
         check_success(self, ret)
             
      
@@ -2491,10 +2478,10 @@ class Connection:
         
         self.ansi = ansi
         if not ansi:
-            c_connectString = wchar_pointer(UCS_buf(self.connectString))
+            c_connectString = wchar_pointer(UCS_buf(connectString))
             odbc_func = ODBC_API.SQLDriverConnectW
         else:
-            c_connectString = ctypes.c_char_p(self.connectString)
+            c_connectString = ctypes.c_char_p(connectString)
             odbc_func = ODBC_API.SQLDriverConnect
 
         # With unixODBC, SQLDriverConnect will intermittently fail with error:
@@ -2508,11 +2495,11 @@ class Connection:
         if ODBC_API._name != 'odbc32':
             try:
                 lock.acquire()
-                ret = odbc_func(self.dbc_h, 0, c_connectString, len(self.connectString), None, 0, None, SQL_DRIVER_NOPROMPT)
+                ret = odbc_func(self.dbc_h, 0, c_connectString, len(connectString), None, 0, None, SQL_DRIVER_NOPROMPT)
             finally:
                 lock.release()
         else:
-            ret = odbc_func(self.dbc_h, 0, c_connectString, len(self.connectString), None, 0, None, SQL_DRIVER_NOPROMPT)
+            ret = odbc_func(self.dbc_h, 0, c_connectString, len(connectString), None, 0, None, SQL_DRIVER_NOPROMPT)
         check_success(self, ret)
             
         
@@ -2712,9 +2699,8 @@ class Connection:
 #            ret = ODBC_API.SQLFreeHandle(SQL_HANDLE_ENV, shared_env_h)
 #            check_success(shared_env_h, ret)
         self.connected = 0
-        
-odbc = Connection
-connect = odbc
+
+connect = Connection
 '''
 def connect(connectString = '', autocommit = False, ansi = False, timeout = 0, unicode_results = False, readonly = False, **kargs):
     return odbc(connectString, autocommit, ansi, timeout, unicode_results, readonly, kargs)
